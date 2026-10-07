@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Álbum de casamento de Samuel e Gabriela — um lugar para guardar e reviver nossas melhores lembranças.">
+  <title>Samuel & Gabriela — Nosso álbum</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%23770f22'/%3E%3Cpath d='M32 48C20 40 13 34 13 24a10 10 0 0 1 18-6 10 10 0 0 1 20 6c0 10-7 16-19 24Z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="intro-active">
+  <a class="skip-link" href="#album">Ir para o álbum</a>
+
+  <section class="intro" id="intro" aria-label="Entrada do álbum">
+    <div class="intro-collage" aria-hidden="true">
+      <figure class="intro-photo intro-photo-a"><img src="assets/4.png" alt=""></figure>
+      <figure class="intro-photo intro-photo-b"><img src="assets/fotomaonova.jpg" alt=""></figure>
+      <figure class="intro-photo intro-photo-c"><img src="assets/2.png" alt=""></figure>
+    </div>
+    <div class="intro-wash" aria-hidden="true"></div>
+    <div class="intro-content">
+      <span class="monogram" aria-hidden="true">S <i></i> G</span>
+      <p class="eyebrow">20 · 11 · 2026</p>
+      <h1>Samuel <span>&</span> Gabriela</h1>
+      <p class="intro-copy">Cada fotografia guarda um pedacinho do nosso para sempre.</p>
+      <button class="enter-button" id="enterAlbum" type="button">
+        <span>Entrar no nosso álbum</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
+      </button>
+    </div>
+    <p class="intro-note">Um álbum feito de amor, riso e presença.</p>
+  </section>
+
+  <main id="album" tabindex="-1" inert>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Samuel e Gabriela — início">
+        <span>S</span><i></i><span>G</span>
+      </a>
+      <nav aria-label="Navegação principal">
+        <a href="#historia">Nossa história</a>
+        <a href="#galeria">Fotografias</a>
+      </nav>
+      <button class="outline-button header-add" type="button" data-open-upload>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar fotos
+      </button>
+    </header>
+
+    <section class="hero" id="top">
+      <div class="hero-copy reveal">
+        <p class="eyebrow">Nosso álbum de casamento</p>
+        <h2>O amor mora<br>nos <em>detalhes.</em></h2>
+        <blockquote>
+          “Acima de tudo, porém, revistam-se do amor, que é o elo perfeito.”
+          <cite>Colossenses 3:14</cite>
+        </blockquote>
+        <a class="text-link" href="#galeria">Ver nossas lembranças <span aria-hidden="true">↓</span></a>
+      </div>
+
+      <div class="hero-composition reveal" aria-label="Momentos de Samuel e Gabriela">
+        <figure class="hero-main">
+          <img src="assets/4.png" alt="Samuel e Gabriela caminhando de mãos dadas em um jardim">
+          <figcaption>Onde a nossa história escolheu ficar</figcaption>
+        </figure>
+        <figure class="hero-detail">
+          <img src="assets/fotomaonova.jpg" alt="Mãos do casal mostrando as alianças">
+        </figure>
+        <span class="hero-stamp" aria-hidden="true">S + G<br><small>2026</small></span>
+      </div>
+    </section>
+
+    <section class="story-strip" id="historia">
+      <p class="story-number">01</p>
+      <div class="story-copy reveal">
+        <p class="eyebrow">Nossa história</p>
+        <h2>Antes do “sim”,<br>vieram tantos momentos.</h2>
+      </div>
+      <p class="story-text reveal">Este é o lugar onde guardamos os abraços apertados, os olhares espontâneos e cada detalhe que fez o nosso dia ser único.</p>
+    </section>
+
+    <section class="gallery-section" id="galeria">
+      <div class="gallery-heading reveal">
+        <div>
+          <p class="eyebrow">Memórias para sempre</p>
+          <h2>Nossas fotografias</h2>
+        </div>
+        <div class="gallery-summary">
+          <span id="photoCount">6 fotografias</span>
+          <button class="solid-button" type="button" data-open-upload>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Adicionar lembranças
+          </button>
+        </div>
+      </div>
+
+      <div class="filter-bar" role="toolbar" aria-label="Filtrar fotografias">
+        <button class="filter-button active" type="button" data-filter="Todos" aria-pressed="true">Todas</button>
+        <button class="filter-button" type="button" data-filter="Nós dois" aria-pressed="false">Nós dois</button>
+        <button class="filter-button" type="button" data-filter="Noivado" aria-pressed="false">Noivado</button>
+        <button class="filter-button" type="button" data-filter="Casamento" aria-pressed="false">Casamento</button>
+      </div>
+
+      <div class="gallery" id="gallery" aria-live="polite"></div>
+
+      <div class="empty-state" id="emptyState" hidden>
+        <span aria-hidden="true">♡</span>
+        <h3>Ainda não há fotos aqui</h3>
+        <p>Adicione as primeiras lembranças desta coleção.</p>
+      </div>
+    </section>
+
+    <section class="final-note reveal">
+      <span class="monogram" aria-hidden="true">S <i></i> G</span>
+      <p>Que a nossa vida seja sempre cheia de momentos que mereçam ser lembrados.</p>
+      <small>Com amor, Samuel & Gabriela</small>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>Samuel & Gabriela</span>
+    <p>Nosso álbum · 20 de novembro de 2026</p>
+  </footer>
+
+  <dialog class="upload-dialog" id="uploadDialog" aria-labelledby="uploadTitle">
+    <form method="dialog" class="dialog-shell" id="uploadForm">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">Nova lembrança</p>
+          <h2 id="uploadTitle">Adicionar fotografias</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-upload aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+
+      <label class="drop-zone" id="dropZone" for="photoInput">
+        <input id="photoInput" type="file" accept="image/*" multiple>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16.5V19a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2.5M12 16V4m-4 4 4-4 4 4"/></svg>
+        <strong>Escolha suas fotos</strong>
+        <span>ou arraste os arquivos para cá</span>
+        <small>JPG, PNG ou WEBP · até 30 MB por foto</small>
+      </label>
+
+      <div class="selected-files" id="selectedFiles" hidden></div>
+
+      <div class="form-row">
+        <label>
+          <span>Legenda <small>(opcional)</small></span>
+          <input id="photoCaption" type="text" maxlength="80" placeholder="Ex.: Nosso primeiro olhar">
+        </label>
+        <label>
+          <span>Momento</span>
+          <select id="photoCategory">
+            <option value="Casamento">Casamento</option>
+            <option value="Nós dois">Nós dois</option>
+            <option value="Noivado">Noivado</option>
+          </select>
+        </label>
+      </div>
+
+      <p class="privacy-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z"/></svg>
+        As fotos ficam salvas somente neste navegador e dispositivo.
+      </p>
+
+      <div class="dialog-actions">
+        <button class="text-button" type="button" data-close-upload>Cancelar</button>
+        <button class="solid-button" id="savePhotos" type="submit" disabled>Salvar no álbum</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="lightbox" id="lightbox" aria-label="Visualização da fotografia">
+    <button class="lightbox-close" id="closeLightbox" type="button" aria-label="Fechar fotografia">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <button class="lightbox-nav previous" id="previousPhoto" type="button" aria-label="Fotografia anterior">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <figure>
+      <img id="lightboxImage" src="" alt="">
+      <figcaption>
+        <div><strong id="lightboxCaption"></strong><span id="lightboxMeta"></span></div>
+        <button class="delete-button" id="deletePhoto" type="button" hidden>Excluir esta foto</button>
+      </figcaption>
+    </figure>
+    <button class="lightbox-nav next" id="nextPhoto" type="button" aria-label="Próxima fotografia">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+    </button>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
