@@ -53,7 +53,7 @@
     <section class="hero" id="top">
       <div class="hero-copy reveal">
         <p class="eyebrow">Nosso álbum de casamento</p>
-        <h2>O amor mora<br>nos <em>detalhes.</em></h2>
+        <h2>O amor mora<br>nos detalhes.</h2>
         <blockquote>
           “Acima de tudo, porém, revistam-se do amor, que é o elo perfeito.”
           <cite>Colossenses 3:14</cite>
@@ -79,7 +79,7 @@
         <p class="eyebrow">Nossa história</p>
         <h2>Antes do “sim”,<br>vieram tantos momentos.</h2>
       </div>
-      <p class="story-text reveal">Este é o lugar onde guardamos os abraços apertados, os olhares espontâneos e cada detalhe que fez o nosso dia ser único.</p>
+      <p class="story-text reveal">Compartilhe os abraços, os olhares espontâneos e cada detalhe que fez o nosso dia ser único. Este álbum cresce com as lembranças de quem viveu tudo ao nosso lado.</p>
     </section>
 
     <section class="gallery-section" id="galeria">
@@ -89,7 +89,7 @@
           <h2>Nossas fotografias</h2>
         </div>
         <div class="gallery-summary">
-          <span id="photoCount">6 fotografias</span>
+          <span id="photoCount">Carregando fotografias…</span>
           <button class="solid-button" type="button" data-open-upload>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             Adicionar lembranças
@@ -97,19 +97,13 @@
         </div>
       </div>
 
-      <div class="filter-bar" role="toolbar" aria-label="Filtrar fotografias">
-        <button class="filter-button active" type="button" data-filter="Todos" aria-pressed="true">Todas</button>
-        <button class="filter-button" type="button" data-filter="Nós dois" aria-pressed="false">Nós dois</button>
-        <button class="filter-button" type="button" data-filter="Noivado" aria-pressed="false">Noivado</button>
-        <button class="filter-button" type="button" data-filter="Casamento" aria-pressed="false">Casamento</button>
-      </div>
-
-      <div class="gallery" id="gallery" aria-live="polite"></div>
+      <p class="gallery-live-note">Novas fotos aparecem aqui automaticamente.</p>
+      <div class="gallery" id="gallery" aria-live="polite" aria-busy="true"></div>
 
       <div class="empty-state" id="emptyState" hidden>
         <span aria-hidden="true">♡</span>
-        <h3>Ainda não há fotos aqui</h3>
-        <p>Adicione as primeiras lembranças desta coleção.</p>
+        <h3 id="emptyTitle">Ainda não há fotos aqui</h3>
+        <p id="emptyCopy">Seja o primeiro a compartilhar uma lembrança do nosso casamento.</p>
       </div>
     </section>
 
@@ -149,27 +143,19 @@
 
       <div class="form-row">
         <label>
-          <span>Legenda <small>(opcional)</small></span>
-          <input id="photoCaption" type="text" maxlength="80" placeholder="Ex.: Nosso primeiro olhar">
-        </label>
-        <label>
-          <span>Momento</span>
-          <select id="photoCategory">
-            <option value="Casamento">Casamento</option>
-            <option value="Nós dois">Nós dois</option>
-            <option value="Noivado">Noivado</option>
-          </select>
+          <span>Seu nome <small>(opcional)</small></span>
+          <input id="photoCaption" type="text" maxlength="60" autocomplete="name" placeholder="Ex.: Ana e João">
         </label>
       </div>
 
       <p class="privacy-note">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z"/></svg>
-        As fotos ficam salvas somente neste navegador e dispositivo.
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 19h14"/></svg>
+        As fotos serão enviadas ao álbum compartilhado do casamento.
       </p>
 
       <div class="dialog-actions">
         <button class="text-button" type="button" data-close-upload>Cancelar</button>
-        <button class="solid-button" id="savePhotos" type="submit" disabled>Salvar no álbum</button>
+        <button class="solid-button" id="savePhotos" type="submit" disabled>Enviar para o álbum</button>
       </div>
     </form>
   </dialog>
@@ -185,7 +171,6 @@
       <img id="lightboxImage" src="" alt="">
       <figcaption>
         <div><strong id="lightboxCaption"></strong><span id="lightboxMeta"></span></div>
-        <button class="delete-button" id="deletePhoto" type="button" hidden>Excluir esta foto</button>
       </figcaption>
     </figure>
     <button class="lightbox-nav next" id="nextPhoto" type="button" aria-label="Próxima fotografia">
@@ -195,6 +180,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
