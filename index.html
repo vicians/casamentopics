@@ -97,8 +97,14 @@
         </div>
       </div>
 
-      <p class="gallery-live-note">Novas fotos aparecem aqui automaticamente.</p>
-      <div class="gallery" id="gallery" aria-live="polite" aria-busy="true"></div>
+      <div class="gallery-live-note">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span>Novas fotos aparecem aqui automaticamente.</span>
+        <span class="reaction-hint">Toque em uma reação para celebrar cada momento.</span>
+      </div>
+      <div class="gallery-stage" id="galleryStage" hidden>
+        <div class="gallery" id="gallery" aria-live="polite" aria-busy="true"></div>
+      </div>
 
       <div class="empty-state" id="emptyState" hidden>
         <span aria-hidden="true">♡</span>
@@ -171,6 +177,7 @@
       <img id="lightboxImage" src="" alt="">
       <figcaption>
         <div><strong id="lightboxCaption"></strong><span id="lightboxMeta"></span></div>
+        <div class="lightbox-reactions" id="lightboxReactions"></div>
       </figcaption>
     </figure>
     <button class="lightbox-nav next" id="nextPhoto" type="button" aria-label="Próxima fotografia">
