@@ -41,13 +41,18 @@
         <span>S</span><i></i><span>G</span>
       </a>
       <nav aria-label="Navegação principal">
-        <a href="#historia">Nossa história</a>
         <a href="#galeria">Fotografias</a>
       </nav>
-      <button class="outline-button header-add" type="button" data-open-upload>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Adicionar fotos
-      </button>
+      <div class="header-actions">
+        <button class="outline-button header-schedule" type="button" data-open-schedule>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
+          Roteiro das fotos
+        </button>
+        <button class="solid-button header-add" type="button" data-open-upload>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar lembranças
+        </button>
+      </div>
     </header>
 
     <section class="hero" id="top">
@@ -71,15 +76,6 @@
         </figure>
         <span class="hero-stamp" aria-hidden="true">S + G<br><small>2026</small></span>
       </div>
-    </section>
-
-    <section class="story-strip" id="historia">
-      <p class="story-number">01</p>
-      <div class="story-copy reveal">
-        <p class="eyebrow">Nossa história</p>
-        <h2>Antes do “sim”,<br>vieram tantos momentos.</h2>
-      </div>
-      <p class="story-text reveal">Compartilhe os abraços, os olhares espontâneos e cada detalhe que fez o nosso dia ser único. Este álbum cresce com as lembranças de quem viveu tudo ao nosso lado.</p>
     </section>
 
     <section class="gallery-section" id="galeria">
@@ -164,6 +160,91 @@
         <button class="solid-button" id="savePhotos" type="submit" disabled>Enviar para o álbum</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="schedule-dialog" id="scheduleDialog" aria-labelledby="scheduleTitle">
+    <div class="schedule-shell">
+      <header class="schedule-header">
+        <div>
+          <p class="eyebrow">Nosso grande dia</p>
+          <h2 id="scheduleTitle">Roteiro de Fotos do Casamento</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-schedule aria-label="Fechar roteiro de fotos">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+
+      <div class="schedule-body">
+
+        <section class="schedule-group" aria-labelledby="scheduleGroup1">
+          <h3 id="scheduleGroup1"><em aria-hidden="true">💍</em> 1 · Fotos principais — noivos e padrinhos</h3>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-1-1"><span>Noivos juntos</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-1-2"><span>Noivos com os padrinhos e as madrinhas</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-1-3"><span>Noivos com as daminhas e os pajens</span></label></li>
+          </ul>
+        </section>
+
+        <section class="schedule-group" aria-labelledby="scheduleGroup2">
+          <h3 id="scheduleGroup2"><em aria-hidden="true">👨‍👩‍👧‍👦</em> 2 · Pais, avós e bisavó</h3>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-2-1"><span>Noivos com os pais da noiva</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-2-2"><span>Noivos com os pais do noivo</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-2-3"><span>Noivos com os pais de ambos</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-2-4"><span>Noivos com as avós e a bisavó</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-2-5"><span>Noivos com os pais, as avós e a bisavó</span></label></li>
+          </ul>
+        </section>
+
+        <section class="schedule-group" aria-labelledby="scheduleGroup3">
+          <h3 id="scheduleGroup3"><em aria-hidden="true">👰</em> 3 · Família da noiva</h3>
+
+          <p class="schedule-subtitle">3.1 · Família Jataiada</p>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-3-1-1"><span>Noivos com a família Jataiada completa, incluindo a bisavó</span></label></li>
+          </ul>
+
+          <p class="schedule-subtitle">3.2 · Primos e primas da noiva</p>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-3-2-1"><span>Noivos com os primos e as primas da noiva</span></label></li>
+          </ul>
+
+          <p class="schedule-subtitle">3.3 · Amigos da noiva</p>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-3-3-1"><span>Noivos com os amigos da escola e da faculdade da noiva</span></label></li>
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-3-3-2"><span>Noivos com os colegas de trabalho da noiva</span></label></li>
+          </ul>
+
+          <p class="schedule-subtitle">3.4 · Tios e tias da noiva</p>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-3-4-1"><span>Noivos com todos os tios e tias da noiva</span></label></li>
+          </ul>
+        </section>
+
+        <section class="schedule-group" aria-labelledby="scheduleGroup4">
+          <h3 id="scheduleGroup4"><em aria-hidden="true">🤵</em> 4 · Família do noivo</h3>
+
+          <p class="schedule-subtitle">4.1 · Tios e tias</p>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-4-1-1"><span>Noivos com os tios e as tias do noivo</span></label></li>
+          </ul>
+
+          <p class="schedule-subtitle">4.2 · Amigos do noivo</p>
+          <ul class="schedule-list">
+            <li><label class="schedule-item"><input type="checkbox" id="roteiro-4-2-1"><span>Noivos com os amigos do noivo</span></label></li>
+          </ul>
+        </section>
+
+        <section class="schedule-group" aria-labelledby="scheduleGroup5">
+          <h3 id="scheduleGroup5"><em aria-hidden="true">🥂</em> 5 · Amigos em comum dos noivos</h3>
+        </section>
+      </div>
+
+      <footer class="schedule-footer">
+        <p class="schedule-progress" id="scheduleProgress"></p>
+        <button class="outline-button" type="button" data-close-schedule>Fechar</button>
+      </footer>
+    </div>
   </dialog>
 
   <dialog class="lightbox" id="lightbox" aria-label="Visualização da fotografia">

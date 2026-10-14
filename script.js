@@ -5,6 +5,7 @@ const UPLOAD_FOLDER = "uploads";
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
 const AUTO_REFRESH_MS = 20_000;
 const VISITOR_STORAGE_KEY = "casamento-reaction-visitor";
+const SCHEDULE_STORAGE_KEY = "casamento-roteiro-fotos";
 const REACTIONS = [
   { key: "love", emoji: "❤️", label: "Amei" },
   { key: "joy", emoji: "😂", label: "Muito bom" },
@@ -51,6 +52,8 @@ const elements = {
   lightboxCaption: document.querySelector("#lightboxCaption"),
   lightboxMeta: document.querySelector("#lightboxMeta"),
   lightboxReactions: document.querySelector("#lightboxReactions"),
+  scheduleDialog: document.querySelector("#scheduleDialog"),
+  scheduleProgress: document.querySelector("#scheduleProgress"),
   toast: document.querySelector("#toast")
 };
 
@@ -468,6 +471,42 @@ function closeUploadDialog() {
   elements.uploadDialog.close();
 }
 
+function scheduleInputs() {
+  return [...elements.scheduleDialog.querySelectorAll(".schedule-item input")];
+}
+
+function updateScheduleProgress() {
+  const inputs = scheduleInputs();
+  const done = inputs.filter((input) => input.checked).length;
+  elements.scheduleProgress.innerHTML = `<strong>${done}</strong> de ${inputs.length} etapas concluídas`;
+  try {
+    localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(
+      Object.fromEntries(inputs.map((input) => [input.id, input.checked]))
+    ));
+  } catch (error) {
+    console.warn("Não foi possível salvar o progresso do roteiro:", error);
+  }
+}
+
+function loadScheduleProgress() {
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(SCHEDULE_STORAGE_KEY)) || {};
+  } catch (error) {
+    saved = {};
+  }
+  scheduleInputs().forEach((input) => { input.checked = Boolean(saved[input.id]); });
+  updateScheduleProgress();
+}
+
+function openScheduleDialog() {
+  elements.scheduleDialog.showModal();
+}
+
+function closeScheduleDialog() {
+  elements.scheduleDialog.close();
+}
+
 function resetUploadForm() {
   if (state.uploadInProgress) return;
   clearObjectUrls(state.previewUrls);
@@ -624,6 +663,9 @@ function enterAlbum() {
 elements.enterAlbum.addEventListener("click", enterAlbum);
 document.querySelectorAll("[data-open-upload]").forEach((button) => button.addEventListener("click", openUploadDialog));
 document.querySelectorAll("[data-close-upload]").forEach((button) => button.addEventListener("click", closeUploadDialog));
+document.querySelectorAll("[data-open-schedule]").forEach((button) => button.addEventListener("click", openScheduleDialog));
+document.querySelectorAll("[data-close-schedule]").forEach((button) => button.addEventListener("click", closeScheduleDialog));
+scheduleInputs().forEach((input) => input.addEventListener("change", updateScheduleProgress));
 elements.photoInput.addEventListener("change", (event) => handleFiles(event.target.files));
 elements.uploadForm.addEventListener("submit", uploadSelectedPhotos);
 
@@ -647,7 +689,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "ArrowRight") moveLightbox(1);
 });
 
-[elements.uploadDialog, elements.lightbox].forEach((dialog) => {
+[elements.uploadDialog, elements.lightbox, elements.scheduleDialog].forEach((dialog) => {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog && !state.uploadInProgress) dialog.close();
   });
@@ -659,7 +701,7 @@ elements.uploadDialog.addEventListener("close", resetUploadForm);
 
 function startAutoRefresh() {
   window.setInterval(() => {
-    if (!document.hidden && !state.uploadInProgress && !state.reactionRequests.size && !elements.uploadDialog.open && !elements.lightbox.open) {
+    if (!document.hidden && !state.uploadInProgress && !state.reactionRequests.size && !elements.uploadDialog.open && !elements.lightbox.open && !elements.scheduleDialog.open) {
       loadPhotos({ silent: true });
     }
   }, AUTO_REFRESH_MS);
@@ -667,6 +709,7 @@ function startAutoRefresh() {
 
 function initializeAlbum() {
   setupRevealAnimations();
+  loadScheduleProgress();
   loadPhotos();
   startAutoRefresh();
 }
