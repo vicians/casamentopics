@@ -8,7 +8,7 @@
   <title>Samuel & Gabriela — Nosso álbum</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Italiana&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Italiana&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='32' fill='%23770f22'/%3E%3Cpath d='M32 48C20 40 13 34 13 24a10 10 0 0 1 18-6 10 10 0 0 1 20 6c0 10-7 16-19 24Z' fill='white'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -25,7 +25,7 @@
     <div class="intro-content">
       <span class="monogram" aria-hidden="true">S <i></i> G</span>
       <p class="eyebrow">20 · 11 · 2026</p>
-      <h1>Samuel <span>&</span> Gabriela</h1>
+      <h1 aria-label="Samuel e Gabriela">Samuel <span aria-hidden="true">♥</span> Gabriela</h1>
       <p class="intro-copy">Cada fotografia guarda um pedacinho do nosso para sempre.</p>
       <button class="enter-button" id="enterAlbum" type="button">
         <span>Entrar no nosso álbum</span>
@@ -46,11 +46,13 @@
       <div class="header-actions">
         <button class="outline-button header-schedule" type="button" data-open-schedule>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
-          Roteiro das fotos
+          <span class="header-label-full">Roteiro das fotos</span>
+          <span class="header-label-short">Roteiro</span>
         </button>
         <button class="solid-button header-add" type="button" data-open-upload>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          Adicionar lembranças
+          <span class="header-label-full">Adicionar lembranças</span>
+          <span class="header-label-short">Adicionar</span>
         </button>
       </div>
     </header>
