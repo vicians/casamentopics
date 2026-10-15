@@ -106,8 +106,6 @@ a { color: inherit; }
 .site-header nav a:hover::after { right: 0; }
 .header-actions { justify-self: end; display: flex; align-items: center; gap: 10px; }
 .header-add { justify-self: end; }
-.header-schedule { gap: 7px; min-height: 38px; padding: 8px 15px; font-size: .68rem; letter-spacing: .06em; }
-.header-schedule svg { width: 15px; }
 .header-label-short { display: none; }
 .outline-button, .solid-button, .text-button, .icon-button {
   border: 0;
@@ -172,8 +170,8 @@ blockquote cite { display: block; margin-top: 12px; color: var(--wine); font: 60
 .solid-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 12px 19px; border-radius: 999px; background: var(--wine); color: #fff; font-size: .76rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; transition: background .25s, transform .25s; }
 .solid-button:hover:not(:disabled) { background: var(--wine-dark); transform: translateY(-2px); }
 .solid-button:disabled { cursor: not-allowed; opacity: .45; }
-.header-add { gap: 7px; min-height: 38px; padding: 8px 15px; font-size: .68rem; letter-spacing: .06em; }
-.header-add svg { width: 14px; }
+.header-schedule, .header-add { gap: 7px; min-height: 38px; padding: 8px 15px; font-size: .68rem; letter-spacing: .06em; }
+.header-schedule svg, .header-add svg { width: 15px; }
 .gallery-live-note { margin: 48px 0 20px; padding-bottom: 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); color: #514b47; font-size: .82rem; }
 .live-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--wine); box-shadow: 0 0 0 5px rgba(119,15,34,.08); animation: live-pulse 2.2s ease-in-out infinite; }
 .reaction-hint { margin-left: auto; color: #746c67; }
