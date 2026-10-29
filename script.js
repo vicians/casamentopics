@@ -29,6 +29,36 @@ const REACTIONS = [
   { key: "celebrate", emoji: "🎉", label: "Viva os noivos" }
 ];
 
+// Fotos que o servidor confirmou que não existem mais no R2. O id fica salvo
+// localmente para que um refresh não traga a lembrança de volta enquanto o
+// metadado ainda estiver no D1 ou em uma página antiga do cursor.
+const REMOVED_STORAGE_KEY = "casamento-removed-photos";
+const REMOVED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function loadRemovedPhotoIds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(REMOVED_STORAGE_KEY) || "[]");
+    const now = Date.now();
+    return new Set(
+      saved
+        .filter((item) => item && item.id && now - Number(item.at) < REMOVED_TTL_MS)
+        .map((item) => item.id)
+    );
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function saveRemovedPhotoIds(ids) {
+  try {
+    const now = Date.now();
+    const saved = [...ids].slice(-500).map((id) => ({ id, at: now }));
+    localStorage.setItem(REMOVED_STORAGE_KEY, JSON.stringify(saved));
+  } catch (error) {
+    // sem localStorage, a remoção continua valendo nesta sessão
+  }
+}
+
 const state = {
   photos: [],
   photosTotal: 0,
@@ -52,7 +82,8 @@ const state = {
   // idempotência reaproveitada entre tentativas do mesmo arquivo.
   fileStatus: new WeakMap(),
   uploadIds: new WeakMap(),
-  fileElements: new WeakMap()
+  fileElements: new WeakMap(),
+  removedPhotoIds: loadRemovedPhotoIds()
 };
 
 const elements = {
@@ -421,6 +452,62 @@ function updateGalleryMore() {
   elements.galleryMore.hidden = !state.photosHasMore || !state.photos.length;
 }
 
+// Pergunta ao Worker se o objeto ainda existe no R2. Só é chamado quando uma
+// mídia falha ao carregar, para não confundir arquivo apagado com rede/codec.
+const mediaChecks = new Map();
+
+function mediaExists(src) {
+  const prefix = `${CDN_BASE}/`;
+  const key = src.startsWith(prefix) ? src.slice(prefix.length) : "";
+  if (!key || !API_BASE) return Promise.resolve(true);
+  if (mediaChecks.has(key)) return mediaChecks.get(key);
+
+  const check = fetch(`${API_BASE}/api/media?key=${encodeURIComponent(key)}`)
+    .then((response) => (response.ok ? response.json() : { exists: true }))
+    .then((payload) => payload.exists !== false)
+    .catch(() => true)
+    .finally(() => {
+      window.setTimeout(() => mediaChecks.delete(key), 10_000);
+    });
+
+  mediaChecks.set(key, check);
+  return check;
+}
+
+function removePhotoFromGallery(photoId) {
+  const index = state.photos.findIndex((photo) => photo.id === photoId);
+  if (index === -1) return;
+
+  state.photos.splice(index, 1);
+  state.photosTotal = Math.max(0, (state.photosTotal || 0) - 1);
+  state.reactionPhotos.delete(photoId);
+  state.removedPhotoIds.add(photoId);
+  saveRemovedPhotoIds(state.removedPhotoIds);
+
+  if (elements.lightbox.open) {
+    if (state.lightboxIndex === index) {
+      elements.lightbox.close();
+    } else if (state.lightboxIndex > index) {
+      state.lightboxIndex -= 1;
+    }
+  }
+
+  renderGallery();
+  showToast("Uma lembrança que não existe mais foi removida do álbum.");
+}
+
+async function handlePhotoMediaError(photo, element) {
+  // Miniatura apagada, mas a mídia completa ainda existe: troca para a completa.
+  if (element.tagName === "IMG" && element.src === photo.thumbSrc && photo.thumbSrc !== photo.src) {
+    element.src = photo.src;
+    return;
+  }
+
+  // Só remove quando o R2 confirma que o objeto não existe mais.
+  if (await mediaExists(photo.src)) return;
+  removePhotoFromGallery(photo.id);
+}
+
 function renderGallery() {
   elements.gallery.replaceChildren();
   elements.gallery.setAttribute("aria-busy", "false");
@@ -458,6 +545,7 @@ function renderGallery() {
       video.playsInline = true;
       video.preload = "metadata";
       video.setAttribute("aria-hidden", "true");
+      video.addEventListener("error", () => handlePhotoMediaError(photo, video));
       openButton.append(video);
     } else {
       const image = document.createElement("img");
@@ -467,6 +555,7 @@ function renderGallery() {
         : `Lembrança do casamento enviada por ${photo.guestName}`;
       image.loading = index < 4 ? "eager" : "lazy";
       image.decoding = "async";
+      image.addEventListener("error", () => handlePhotoMediaError(photo, image));
       openButton.append(image);
     }
 
@@ -520,18 +609,34 @@ async function loadPhotos({ silent = false, reset = true } = {}) {
     const payload = await response.json();
     const rows = Array.isArray(payload.photos) ? payload.photos : [];
 
-    const incoming = rows.map((row) => ({
-      id: row.id,
-      name: row.key,
-      src: `${CDN_BASE}/${row.key}`,
-      thumbSrc: row.thumb_key ? `${CDN_BASE}/${row.thumb_key}` : `${CDN_BASE}/${row.key}`,
-      mediaType: isVideoKey(row.key) ? "video" : "image",
-      guestName: row.guest_name || "Convidado especial",
-      createdAt: row.created_at ? new Date(Number(row.created_at)).toISOString() : null,
-      createdAtMs: Number(row.created_at) || 0,
-      reactions: emptyReactionState().counts,
-      myReaction: null
-    }));
+    // O Worker confirma no R2 quais mídias não existem mais e devolve os ids.
+    // Eles entram na lista local para nunca voltarem em refreshes seguintes.
+    const removedIds = Array.isArray(payload.removedIds) ? payload.removedIds : [];
+    if (removedIds.length) {
+      let added = false;
+      removedIds.forEach((id) => {
+        if (!state.removedPhotoIds.has(id)) {
+          state.removedPhotoIds.add(id);
+          added = true;
+        }
+      });
+      if (added) saveRemovedPhotoIds(state.removedPhotoIds);
+    }
+
+    const incoming = rows
+      .filter((row) => !state.removedPhotoIds.has(row.id))
+      .map((row) => ({
+        id: row.id,
+        name: row.key,
+        src: `${CDN_BASE}/${row.key}`,
+        thumbSrc: row.thumb_key ? `${CDN_BASE}/${row.thumb_key}` : `${CDN_BASE}/${row.key}`,
+        mediaType: isVideoKey(row.key) ? "video" : "image",
+        guestName: row.guest_name || "Convidado especial",
+        createdAt: row.created_at ? new Date(Number(row.created_at)).toISOString() : null,
+        createdAtMs: Number(row.created_at) || 0,
+        reactions: emptyReactionState().counts,
+        myReaction: null
+      }));
 
     // Mantém as reações já conhecidas para não "zerar" a galeria a cada refresh.
     const existingById = new Map(state.photos.map((photo) => [photo.id, photo]));
@@ -546,9 +651,15 @@ async function loadPhotos({ silent = false, reset = true } = {}) {
     if (reset) {
       const merged = new Map();
       incoming.forEach((photo) => merged.set(photo.id, photo));
+
+      // Mantém as páginas já carregadas via "Carregar mais", mas nunca
+      // ressuscita uma mídia que o servidor confirmou que foi apagada.
       state.photos.forEach((photo) => {
-        if (!merged.has(photo.id)) merged.set(photo.id, photo);
+        if (!merged.has(photo.id) && !state.removedPhotoIds.has(photo.id)) {
+          merged.set(photo.id, photo);
+        }
       });
+
       nextPhotos = [...merged.values()].sort(comparePhotos);
     } else {
       nextPhotos = [...state.photos, ...incoming];
@@ -1198,6 +1309,16 @@ elements.lightbox.addEventListener("close", () => {
   elements.lightboxVideo.pause();
   elements.lightboxVideo.removeAttribute("src");
   elements.lightboxVideo.load();
+});
+
+// Se a mídia aberta no lightbox não existir mais no R2, remove da galeria.
+elements.lightboxImage.addEventListener("error", () => {
+  const photo = state.photos[state.lightboxIndex];
+  if (photo) handlePhotoMediaError(photo, elements.lightboxImage);
+});
+elements.lightboxVideo.addEventListener("error", () => {
+  const photo = state.photos[state.lightboxIndex];
+  if (photo) handlePhotoMediaError(photo, elements.lightboxVideo);
 });
 
 document.addEventListener("keydown", (event) => {

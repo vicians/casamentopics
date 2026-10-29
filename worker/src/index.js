@@ -87,6 +87,67 @@ async function fetchReactionRows(env, ids, visitor) {
   return rows;
 }
 
+// Reconciliação com o R2: quantos objetos da primeira página conferimos por
+// requisição. Mantém o consumo de subrequests baixo (limite do plano Free) e
+// cobre as mídias mais recentes — as que costumam ser apagadas manualmente.
+const VERIFY_MAX = 40;
+const HEAD_CONCURRENCY = 6;
+
+// Se o objeto não existe mais no R2, o metadado no D1 fica órfão e a galeria
+// mostraria um card vazio. Aqui confirmamos a existência dos mais recentes.
+async function filterMissingMedia(env, photos, ctx) {
+  const toCheck = photos.slice(0, VERIFY_MAX);
+  const rest = photos.slice(VERIFY_MAX);
+  const present = [];
+  const missing = [];
+
+  for (let i = 0; i < toCheck.length; i += HEAD_CONCURRENCY) {
+    const batch = toCheck.slice(i, i + HEAD_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map((photo) => env.BUCKET.head(photo.key))
+    );
+    results.forEach((result, index) => {
+      // Erro no R2 não é prova de exclusão: mantém a mídia na galeria.
+      if (result.status === "fulfilled" && result.value === null) {
+        missing.push(batch[index]);
+      } else {
+        present.push(batch[index]);
+      }
+    });
+  }
+
+  if (missing.length) {
+    const cleanup = cleanupMissingMedia(env, missing);
+    if (ctx && ctx.waitUntil) ctx.waitUntil(cleanup);
+    else await cleanup;
+  }
+
+  return {
+    photos: [...present, ...rest],
+    missingIds: missing.map((photo) => photo.id),
+  };
+}
+
+// Remove do D1 os metadados de mídias que já não existem no R2.
+async function cleanupMissingMedia(env, photos) {
+  for (let i = 0; i < photos.length; i += 20) {
+    const statements = [];
+    for (const photo of photos.slice(i, i + 20)) {
+      statements.push(
+        env.DB.prepare("DELETE FROM reactions WHERE photo_id = ?").bind(photo.id),
+        env.DB.prepare("DELETE FROM photo_thumbs WHERE photo_id = ?").bind(photo.id),
+        env.DB.prepare("DELETE FROM uploads WHERE key = ?").bind(photo.key),
+        env.DB.prepare("DELETE FROM photos WHERE id = ?").bind(photo.id)
+      );
+    }
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      console.warn("Falha ao limpar metadados de mídias removidas:", error);
+    }
+  }
+}
+
 function extensionForContentType(contentType) {
   if (contentType.includes("png")) return "png";
   if (contentType.includes("webp")) return "webp";
@@ -140,7 +201,12 @@ function json(data, status, origin, extraHeaders = {}) {
 // Aguarda a invalidação (em vez de waitUntil) para que o cliente que atualiza a
 // galeria logo após o upload já veja a nova lembrança, sem esperar o TTL.
 async function invalidateFirstPage(origin) {
-  await caches.default.delete(photosCacheKey(firstPageUrl(origin)));
+  try {
+    await caches.default.delete(photosCacheKey(firstPageUrl(origin)));
+  } catch (error) {
+    // A cache é só uma otimização: nunca deve derrubar um upload já concluído.
+    console.warn("Falha ao invalidar cache:", error);
+  }
 }
 
 // ---- Upload de foto/vídeo ------------------------------------------------
@@ -316,7 +382,12 @@ async function handlePhotosList(request, env, ctx, url, origin) {
   const cache = caches.default;
   const cacheKey = photosCacheKey(url);
 
-  const cached = await cache.match(cacheKey);
+  let cached = null;
+  try {
+    cached = await cache.match(cacheKey);
+  } catch (error) {
+    // Cache indisponível (ex.: workers.dev): segue direto para o D1.
+  }
   if (cached) {
     // Reaplica o CORS da origem atual: o corpo é o mesmo para todos.
     const headers = new Headers(cached.headers);
@@ -364,13 +435,29 @@ async function handlePhotosList(request, env, ctx, url, origin) {
   }
 
   const hasMore = rows.length > limit;
-  const photos = hasMore ? rows.slice(0, limit) : rows;
-  const last = photos[photos.length - 1] || null;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  let photos = pageRows;
+  let removedIds = [];
+
+  // Na primeira página, confirma no R2 se as mídias mais recentes ainda existem.
+  // Assim, apagar um objeto direto no bucket (ou no painel da Cloudflare) some
+  // da galeria já no próximo carregamento, sem deixar card vazio.
+  if (!hasCursor && photos.length) {
+    const checked = await filterMissingMedia(env, photos, ctx);
+    photos = checked.photos;
+    removedIds = checked.missingIds;
+  }
+
+  // O cursor usa a página original (antes do filtro) para permanecer estável:
+  // apagar a última foto não pode fazer a próxima página pular registros.
+  const last = pageRows[pageRows.length - 1] || null;
 
   let total = photos.length;
   try {
     const countRow = await env.DB.prepare("SELECT COUNT(*) AS total FROM photos").first();
-    if (countRow) total = Number(countRow.total) || 0;
+    if (countRow) {
+      total = Math.max(0, (Number(countRow.total) || 0) - removedIds.length);
+    }
   } catch (error) {
     // sem contagem exata: usa o que foi carregado
   }
@@ -380,6 +467,7 @@ async function handlePhotosList(request, env, ctx, url, origin) {
       photos,
       total,
       hasMore,
+      removedIds,
       nextBefore: last ? last.created_at : null,
       nextBeforeId: last ? last.id : null,
     },
@@ -389,7 +477,11 @@ async function handlePhotosList(request, env, ctx, url, origin) {
   response.headers.set("Cache-Control", `public, max-age=${PHOTOS_CACHE_TTL}`);
 
   if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    ctx.waitUntil(
+      cache.put(cacheKey, response.clone()).catch(() => {
+        // Cache não disponível: a galeria continua funcionando sem ele.
+      })
+    );
   }
   return response;
 }
@@ -469,6 +561,22 @@ export default {
 
       if (url.pathname === "/api/photos" && request.method === "GET") {
         return await handlePhotosList(request, env, ctx, url, origin);
+      }
+
+      // Usado pelo frontend só quando uma imagem/vídeo falha ao carregar, para
+      // diferenciar "objeto apagado do R2" de "rede/codec". CORS já é aplicado.
+      if (url.pathname === "/api/media" && request.method === "GET") {
+        const key = (url.searchParams.get("key") || "").trim();
+        if (!/^(uploads|thumbs)\/[A-Za-z0-9._-]+$/.test(key)) {
+          return json({ error: "chave inválida" }, 400, origin);
+        }
+        try {
+          const head = await env.BUCKET.head(key);
+          return json({ exists: Boolean(head) }, 200, origin);
+        } catch (error) {
+          // Falha do R2 não confirma exclusão: mantém a mídia na galeria.
+          return json({ exists: true }, 200, origin);
+        }
       }
 
       if (url.pathname === "/api/reactions" && request.method === "GET") {
