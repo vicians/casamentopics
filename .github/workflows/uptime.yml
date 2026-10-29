@@ -1,0 +1,19 @@
+name: Uptime do álbum
+
+# Verifica a API a cada 15 minutos. Se a API responder algo diferente de 200,
+# o workflow falha e o GitHub notifica o responsável pelo commit.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar /api/photos
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
+            https://casamento-api.samuelvcallegaro.workers.dev/api/photos)
+          echo "HTTP $code"
+          test "$code" = "200"

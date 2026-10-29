@@ -41,7 +41,7 @@
         <span>S</span><i></i><span>G</span>
       </a>
       <nav aria-label="Navegação principal">
-        <a href="#galeria">Fotografias</a>
+        <a href="#galeria">Lembranças</a>
       </nav>
       <div class="header-actions">
         <button class="solid-button header-schedule" type="button" data-open-schedule>
@@ -84,7 +84,7 @@
       <div class="gallery-heading reveal">
         <div>
           <p class="eyebrow">Memórias para sempre</p>
-          <h2>Nossas fotografias</h2>
+          <h2>Nossas lembranças</h2>
         </div>
         <div class="gallery-summary">
           <span id="photoCount">Carregando fotografias…</span>
@@ -97,16 +97,20 @@
 
       <div class="gallery-live-note">
         <span class="live-dot" aria-hidden="true"></span>
-        <span>Novas fotos aparecem aqui automaticamente.</span>
+        <span>Novas lembranças aparecem aqui automaticamente.</span>
         <span class="reaction-hint">Toque em uma reação para celebrar cada momento.</span>
       </div>
       <div class="gallery-stage" id="galleryStage" hidden>
         <div class="gallery" id="gallery" aria-live="polite" aria-busy="true"></div>
       </div>
 
+      <div class="gallery-more" id="galleryMore" hidden>
+        <button class="outline-button" id="loadMorePhotos" type="button">Carregar mais lembranças</button>
+      </div>
+
       <div class="empty-state" id="emptyState" hidden>
         <span aria-hidden="true">♡</span>
-        <h3 id="emptyTitle">Ainda não há fotos aqui</h3>
+        <h3 id="emptyTitle">Ainda não há lembranças aqui</h3>
         <p id="emptyCopy">Seja o primeiro a compartilhar uma lembrança do nosso casamento.</p>
       </div>
     </section>
@@ -128,7 +132,7 @@
       <div class="dialog-header">
         <div>
           <p class="eyebrow">Nova lembrança</p>
-          <h2 id="uploadTitle">Adicionar fotografias</h2>
+          <h2 id="uploadTitle">Adicionar lembranças</h2>
         </div>
         <button class="icon-button" type="button" data-close-upload aria-label="Fechar">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -136,11 +140,11 @@
       </div>
 
       <label class="drop-zone" id="dropZone" for="photoInput">
-        <input id="photoInput" type="file" accept="image/*" multiple>
+        <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" multiple>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16.5V19a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2.5M12 16V4m-4 4 4-4 4 4"/></svg>
-        <strong>Escolha suas fotos</strong>
+        <strong>Escolha suas fotos ou vídeos</strong>
         <span>ou arraste os arquivos para cá</span>
-        <small>JPG, PNG ou WEBP · até 30 MB por foto</small>
+        <small>Fotos até 30 MB · vídeos até 80 MB</small>
       </label>
 
       <div class="selected-files" id="selectedFiles" hidden></div>
@@ -158,7 +162,7 @@
 
       <p class="privacy-note">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 19h14"/></svg>
-        As fotos serão enviadas ao álbum compartilhado do casamento.
+        As fotos e vídeos serão enviados ao álbum compartilhado do casamento.
       </p>
 
       <div class="dialog-actions">
@@ -253,24 +257,33 @@
     </div>
   </dialog>
 
-  <dialog class="lightbox" id="lightbox" aria-label="Visualização da fotografia">
-    <button class="lightbox-close" id="closeLightbox" type="button" aria-label="Fechar fotografia">
+  <dialog class="lightbox" id="lightbox" aria-label="Visualização da lembrança">
+    <button class="lightbox-close" id="closeLightbox" type="button" aria-label="Fechar lembrança">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
-    <button class="lightbox-nav previous" id="previousPhoto" type="button" aria-label="Fotografia anterior">
+    <button class="lightbox-nav previous" id="previousPhoto" type="button" aria-label="Lembrança anterior">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
     </button>
     <figure>
       <img id="lightboxImage" src="" alt="">
+      <video id="lightboxVideo" controls playsinline hidden></video>
       <figcaption>
         <div><strong id="lightboxCaption"></strong><span id="lightboxMeta"></span></div>
         <div class="lightbox-reactions" id="lightboxReactions"></div>
       </figcaption>
     </figure>
-    <button class="lightbox-nav next" id="nextPhoto" type="button" aria-label="Próxima fotografia">
+    <button class="lightbox-nav next" id="nextPhoto" type="button" aria-label="Próxima lembrança">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
     </button>
   </dialog>
+
+  <div class="resume-banner" id="resumeBanner" hidden>
+    <span id="resumeText"></span>
+    <div class="resume-actions">
+      <button type="button" id="resumeUploads">Retomar envio</button>
+      <button type="button" id="dismissResume" aria-label="Dispensar">×</button>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
