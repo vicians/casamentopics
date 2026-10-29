@@ -59,6 +59,10 @@ tradicional isso gera custo e pode estourar limites. No R2, a leitura é gratuit
   no servidor** (UUID). Assim é impossível sobrescrever uma foto existente ou
   escolher caminhos arbitrários: todo upload é sempre um objeto **novo**.
 - Não há rota para excluir fotos.
+- **Rate limit** no endpoint de upload (rate limiter nativo da Cloudflare): 300
+  uploads por 60s por IP. É **aproximado e por IP**, então convidados no mesmo
+  Wi-Fi compartilham a cota — o limite é propositalmente generoso para nunca
+  bloquear convidados, apenas barrar spam/abuso (retorna HTTP 429).
 
 ---
 
@@ -153,8 +157,6 @@ continuam válidos.
 
 ## Observações
 
-- O arquivo `supabase-setup.sql` é legado (versão anterior em Supabase) e pode
-  ser removido.
 - O endereço `pub-*.r2.dev` é o modo de desenvolvimento do R2 e tem limite de
   requisições. Para uso prolongado ou maior tráfego, conecte um **domínio
   próprio** ao bucket (Custom Domains) e troque apenas o `CDN_BASE`.

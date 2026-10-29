@@ -13,3 +13,14 @@ bucket_name = "casamento-fotos"
 binding = "DB"
 database_name = "casamento"
 database_id = "391701a8-c005-4410-a1e8-45c41dbdb7db"
+
+# Rate limit de uploads por IP (aproximado, por localização da Cloudflare).
+# 300 uploads por 60s por IP — generoso de propósito, pois convidados no mesmo
+# Wi-Fi compartilham o IP. Serve para barrar spam/abuso, não convidados.
+[[ratelimits]]
+name = "UPLOAD_RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 300
+  period = 60

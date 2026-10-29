@@ -27,6 +27,20 @@ function extensionForContentType(contentType) {
   return "jpg";
 }
 
+// Verifica o rate limit do upload. Em qualquer falha (binding ausente ou erro),
+// libera o upload — o rate limiter nunca deve derrubar um envio legítimo.
+async function isUploadAllowed(env, request) {
+  const limiter = env.UPLOAD_RATE_LIMITER;
+  if (!limiter) return true;
+  const ip = request.headers.get("CF-Connecting-IP") || "desconhecido";
+  try {
+    const { success } = await limiter.limit({ key: ip });
+    return success;
+  } catch (error) {
+    return true;
+  }
+}
+
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": origin || ALLOWED_ORIGIN,
@@ -56,6 +70,10 @@ export default {
     try {
       // ---- Upload de foto ----
       if (url.pathname === "/api/upload" && request.method === "POST") {
+        if (!(await isUploadAllowed(env, request))) {
+          return json({ error: "Muitos envios em pouco tempo. Aguarde um instante." }, 429, origin);
+        }
+
         const guest = (url.searchParams.get("guest") || "Convidado especial")
           .trim()
           .slice(0, 60) || "Convidado especial";
