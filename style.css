@@ -401,3 +401,19 @@ dialog::backdrop { background: rgba(20,13,12,.62); backdrop-filter: blur(7px); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.upload-progress {
+  width: 100%;
+  height: 6px;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: rgba(119, 15, 34, .12);
+  overflow: hidden;
+}
+.upload-progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--wine);
+  transition: width .2s ease;
+}

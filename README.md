@@ -1,37 +1,160 @@
 # Samuel & Gabriela — álbum colaborativo
 
-Site estático em HTML, CSS e JavaScript para os convidados enviarem fotografias durante o casamento. As imagens são otimizadas no navegador, enviadas ao Supabase Storage e aparecem automaticamente na galeria compartilhada.
+Álbum de casamento onde os convidados enviam fotos pelo celular e elas aparecem
+automaticamente na galeria compartilhada.
 
-## Configuração do Supabase
+O site (HTML/CSS/JavaScript estático) fica no **Vercel**. O backend de upload,
+armazenamento e reações roda na **Cloudflare** (Worker + R2 + D1).
 
-1. No painel do projeto Supabase, abra o **SQL Editor**.
-2. Execute todo o conteúdo de [`supabase-setup.sql`](./supabase-setup.sql).
+---
 
-O script cria automaticamente o bucket público `casamento-fotos`, define o limite de `30 MB`, aceita os formatos de imagem usados pelo site e configura as políticas de acesso. Ele pode ser executado novamente sem duplicar o bucket ou as políticas.
+## Arquitetura
 
-Ele também cria a estrutura das reações. Cada navegador pode manter uma reação por foto, trocar de emoji ou removê-la tocando novamente. Os visitantes recebem apenas os totais agregados; os identificadores individuais não ficam expostos pela API.
+```
+Convidado (browser)
+   │
+   ├─ QR code → https://fotos-gabisamuel.vercel.app   (site no Vercel)
+   │                 │
+   │                 ├─ POST /api/upload     → Worker → R2   (grava a foto)
+   │                 ├─ GET  /api/photos      → Worker → D1   (lista metadados)
+   │                 ├─ GET  /api/reactions   → Worker → D1   (lê reações)
+   │                 ├─ POST /api/reactions   → Worker → D1   (grava reação)
+   │                 └─ <img src="pub-xxxx.r2.dev/...">       (exibe a foto)
+```
 
-As políticas permitem somente:
+| Componente | Serviço | Custo |
+|---|---|---|
+| Frontend | Vercel (estático) | grátis |
+| API | Cloudflare Worker | grátis |
+| Armazenamento das fotos | Cloudflare R2 | grátis (egress ilimitado) |
+| Metadados + reações | Cloudflare D1 | grátis |
 
-- visualizar/listar as fotos da pasta `uploads`;
-- adicionar novas fotos nessa pasta.
+### Por que Cloudflare R2?
 
-A tabela de reações não permite acesso público direto. A leitura agregada e a troca da própria reação passam por funções específicas do banco.
+O R2 **não cobra egress** (leitura). Isso resolve o principal risco de um álbum
+com muitos convidados: a galeria é lida dezenas/centenas de vezes, e na nuvem
+tradicional isso gera custo e pode estourar limites. No R2, a leitura é gratuita.
 
-Não há permissão pública para excluir, alterar ou sobrescrever fotografias.
+### Otimizações de resiliência
+
+- **Upload direto para o storage** (o Worker só faz proxy em *streaming* — o
+  arquivo nunca é carregado inteiro na memória).
+- **Redimensionamento no navegador** antes do envio (máx. 2200px, WebP q=0.86),
+  o que reduz muito o tamanho dos arquivos.
+- **Retry com backoff exponencial** no upload (até 4 tentativas).
+- **Barra de progresso** por arquivo para o convidado saber que está enviando.
+- **Refresh da galeria com jitter** (45s + aleatório) para evitar que todos os
+  clientes consultem a API no mesmo instante.
+- **Falha silenciosa não apaga a galeria** — se uma atualização falhar, a última
+  lista boa permanece na tela.
+
+---
+
+## Segurança (somente inserção de fotos)
+
+- O endereço público do R2 (`pub-*.r2.dev`) é **somente leitura** — nunca permite
+  escrita nem exclusão.
+- **Não existe escrita anônima direta no bucket.** Os uploads passam sempre pelo
+  Worker, que valida tipo (`image/*`), tamanho (30 MB) e **gera o nome do arquivo
+  no servidor** (UUID). Assim é impossível sobrescrever uma foto existente ou
+  escolher caminhos arbitrários: todo upload é sempre um objeto **novo**.
+- Não há rota para excluir fotos.
+
+---
+
+## Estrutura do repositório
+
+```
+.
+├── index.html            # Página do álbum
+├── style.css             # Estilos
+├── script.js             # Lógica do frontend (chama a API do Worker)
+├── assets/               # Imagens fixas do site
+└── worker/               # Backend Cloudflare (ver worker/README.md)
+    ├── wrangler.toml
+    ├── package.json
+    ├── schema.sql
+    └── src/index.js
+```
+
+---
+
+## Configuração
+
+### 1. Backend (Cloudflare)
+
+Siga o passo a passo em [`worker/README.md`](./worker/README.md):
+
+```powershell
+cd worker
+npm install -g wrangler
+wrangler login
+npm install
+wrangler d1 create casamento      # copie o database_id para wrangler.toml
+npm run db:apply
+npm run deploy
+```
+
+Anote a URL gerada, ex. `https://casamento-api.SEU_SUBDOMINIO.workers.dev`.
+
+### 2. Bucket R2 público
+
+No painel Cloudflare → **R2** → bucket `casamento-fotos` → **Settings** →
+**Public access** → habilite o **R2.dev subdomain** e anote a URL
+`https://pub-xxxx.r2.dev`.
+
+### 3. Frontend
+
+No topo do `script.js`, ajuste as duas URLs:
+
+```js
+const API_BASE = "https://casamento-api.SEU_SUBDOMINIO.workers.dev";
+const CDN_BASE = "https://pub-xxxx.r2.dev";
+```
+
+E, em `worker/src/index.js`, garanta que `ALLOWED_ORIGIN` seja o endereço do
+site publicado no Vercel. Depois rode `npm run deploy` na pasta `worker`.
+
+---
 
 ## Teste local
-
-Sirva esta pasta com um servidor HTTP simples. Por exemplo:
 
 ```powershell
 python -m http.server 4173
 ```
 
-Depois abra `http://localhost:4173`.
+Abra `http://localhost:4173`.
 
-## Deploy
+> Observação: o Worker libera CORS apenas para o domínio de produção do Vercel.
+> Se for testar upload localmente, inclua `http://localhost:4173` no
+> `ALLOWED_ORIGIN` do Worker (ou faça o teste já pelo site publicado).
 
-Publique `index.html`, `style.css`, `script.js` e a pasta `assets` no serviço de hospedagem de sua preferência.
+---
 
-O endereço e a chave `anon` do Supabase ficam no frontend por definição. A proteção dos arquivos é feita pelas políticas de acesso configuradas no Storage.
+## Deploy do frontend
+
+Publique `index.html`, `style.css`, `script.js` e a pasta `assets` no Vercel
+(ou outro host estático). O endereço **não muda** — os QR codes já impressos
+continuam válidos.
+
+---
+
+## Checklist do dia do evento
+
+- [ ] `npm run db:apply` executado (tabelas `photos` e `reactions` criadas)
+- [ ] `GET /api/photos` responde `{"photos":[]}`
+- [ ] Upload funcionando pelo site publicado
+- [ ] Reações funcionando
+- [ ] Teste de volume (50+ fotos)
+- [ ] Teste em 4G e Wi-Fi
+- [ ] QR codes apontando para o endereço do Vercel
+
+---
+
+## Observações
+
+- O arquivo `supabase-setup.sql` é legado (versão anterior em Supabase) e pode
+  ser removido.
+- O endereço `pub-*.r2.dev` é o modo de desenvolvimento do R2 e tem limite de
+  requisições. Para uso prolongado ou maior tráfego, conecte um **domínio
+  próprio** ao bucket (Custom Domains) e troque apenas o `CDN_BASE`.

@@ -1,0 +1,17 @@
+# Dependências
+node_modules/
+
+# Cache/estado local do Wrangler (Cloudflare)
+worker/.wrangler/
+worker/node_modules/
+
+# Logs
+*.log
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/

@@ -1,9 +1,11 @@
-const SUPABASE_URL = "https://zhqvzmtxbogtfkvgntko.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpocXZ6bXR4Ym9ndGZrdmdudGtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzOTE0NDYsImV4cCI6MjEwNjk2NzQ0Nn0.fEDRljNELH7aGXA4a04XEH3ZI_KGFCxq7oeGJdgMLNU";
-const BUCKET_NAME = "casamento-fotos";
-const UPLOAD_FOLDER = "uploads";
+// Backend: Cloudflare Worker + R2. O site continua publicado no Vercel.
+const API_BASE = "https://casamento-api.samuelvcallegaro.workers.dev";
+const CDN_BASE = "https://pub-f77d17221fca4030bd4cef5c245225b3.r2.dev";
 const MAX_FILE_SIZE = 30 * 1024 * 1024;
-const AUTO_REFRESH_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 120_000;
+const UPLOAD_ATTEMPTS = 4;
+const AUTO_REFRESH_MS = 45_000;
+const AUTO_REFRESH_JITTER_MS = 15_000;
 const VISITOR_STORAGE_KEY = "casamento-reaction-visitor";
 const SCHEDULE_STORAGE_KEY = "casamento-roteiro-fotos";
 const REACTIONS = [
@@ -14,15 +16,10 @@ const REACTIONS = [
   { key: "celebrate", emoji: "🎉", label: "Viva os noivos" }
 ];
 
-const storageClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-});
-
 const state = {
   photos: [],
   selectedFiles: [],
   previewUrls: [],
-  guestNames: new Map(),
   visitorId: getVisitorId(),
   reactionsAvailable: true,
   reactionRequests: new Set(),
@@ -45,6 +42,8 @@ const elements = {
   photoInput: document.querySelector("#photoInput"),
   dropZone: document.querySelector("#dropZone"),
   selectedFiles: document.querySelector("#selectedFiles"),
+  uploadProgress: document.querySelector("#uploadProgress"),
+  uploadProgressBar: document.querySelector("#uploadProgressBar"),
   guestName: document.querySelector("#photoCaption"),
   savePhotos: document.querySelector("#savePhotos"),
   lightbox: document.querySelector("#lightbox"),
@@ -101,62 +100,8 @@ function formatUploadDate(value) {
   }).format(date);
 }
 
-function isMissingBucketError(error) {
-  const statusCode = String(error?.statusCode ?? "");
-  const message = String(error?.message ?? "");
-  return error?.code === "NoSuchBucket"
-    || statusCode === "404"
-    || /bucket not found/i.test(message);
-}
-
-function isMissingReactionSetupError(error) {
-  const message = String(error?.message ?? "");
-  return error?.code === "PGRST202"
-    || /get_photo_reactions|toggle_photo_reaction/i.test(message);
-}
-
-function guestNameFromMetadata(file) {
-  const metadata = file.metadata || {};
-  return file.user_metadata?.guestName
-    || file.userMetadata?.guestName
-    || metadata.guestName
-    || metadata.guest_name
-    || metadata.user_metadata?.guestName
-    || metadata.userMetadata?.guestName
-    || "Convidado especial";
-}
-
-async function loadGuestNames(files) {
-  const guestNames = new Map();
-  const uncachedFiles = [];
-
-  files.forEach((file) => {
-    if (state.guestNames.has(file.id)) {
-      guestNames.set(file.id, state.guestNames.get(file.id));
-    } else {
-      uncachedFiles.push(file);
-    }
-  });
-
-  const batchSize = 8;
-  for (let index = 0; index < uncachedFiles.length; index += batchSize) {
-    const batch = uncachedFiles.slice(index, index + batchSize);
-    await Promise.all(batch.map(async (file) => {
-      try {
-        const path = `${UPLOAD_FOLDER}/${file.name}`;
-        const { data, error } = await storageClient.storage.from(BUCKET_NAME).info(path);
-        if (error) throw error;
-        const guestName = guestNameFromMetadata(data);
-        state.guestNames.set(file.id, guestName);
-        guestNames.set(file.id, guestName);
-      } catch (error) {
-        console.warn(`Não foi possível carregar o nome associado a ${file.name}:`, error);
-        guestNames.set(file.id, guestNameFromMetadata(file));
-      }
-    }));
-  }
-
-  return guestNames;
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function setEmptyState(title, copy) {
@@ -180,17 +125,19 @@ async function getReactionData(photoIds) {
   const reactions = new Map(photoIds.map((photoId) => [photoId, emptyReactionState()]));
   if (!photoIds.length || !state.reactionsAvailable) return reactions;
 
-  const { data, error } = await storageClient.rpc("get_photo_reactions", {
-    p_photo_ids: photoIds,
-    p_visitor_id: state.visitorId
+  const params = new URLSearchParams({
+    ids: photoIds.join(","),
+    visitor: state.visitorId
   });
-  if (error) throw error;
+  const response = await fetch(`${API_BASE}/api/reactions?${params.toString()}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
 
-  (data || []).forEach((row) => {
+  (payload.reactions || []).forEach((row) => {
     const photoReactions = reactions.get(row.photo_id);
     if (!photoReactions || !REACTIONS.some(({ key }) => key === row.reaction)) return;
-    photoReactions.counts[row.reaction] = Number(row.reaction_count) || 0;
-    if (row.reacted_by_me) photoReactions.myReaction = row.reaction;
+    photoReactions.counts[row.reaction] = Number(row.count) || 0;
+    if (row.mine) photoReactions.myReaction = row.reaction;
   });
   return reactions;
 }
@@ -247,7 +194,7 @@ async function toggleReaction(photoId, reactionKey) {
   const photo = state.photos.find((item) => item.id === photoId);
   if (!photo || state.reactionRequests.has(photoId)) return;
   if (!state.reactionsAvailable) {
-    showToast("As reações ainda precisam ser ativadas no Supabase.");
+    showToast("As reações estão indisponíveis no momento.");
     return;
   }
 
@@ -261,12 +208,16 @@ async function toggleReaction(photoId, reactionKey) {
   updateReactionViews(photoId);
 
   try {
-    const { error } = await storageClient.rpc("toggle_photo_reaction", {
-      p_photo_id: photoId,
-      p_reaction: reactionKey,
-      p_visitor_id: state.visitorId
+    const response = await fetch(`${API_BASE}/api/reactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        photo_id: photoId,
+        reaction: reactionKey,
+        visitor_id: state.visitorId
+      })
     });
-    if (error) throw error;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const refreshed = await getReactionData([photoId]);
     const serverState = refreshed.get(photoId);
@@ -337,7 +288,7 @@ function renderGallery() {
 }
 
 async function loadPhotos({ silent = false } = {}) {
-  if (!storageClient) {
+  if (!API_BASE) {
     elements.photoCount.textContent = "Álbum indisponível";
     setEmptyState("Não foi possível abrir o álbum", "Atualize a página e tente novamente.");
     return;
@@ -349,38 +300,20 @@ async function loadPhotos({ silent = false } = {}) {
   }
 
   try {
-    const files = [];
-    const pageSize = 100;
-    for (let offset = 0; offset < 1000; offset += pageSize) {
-      const { data, error } = await storageClient.storage
-        .from(BUCKET_NAME)
-        .list(UPLOAD_FOLDER, {
-          limit: pageSize,
-          offset,
-          sortBy: { column: "created_at", order: "desc" }
-        });
-      if (error) throw error;
-      files.push(...(data || []));
-      if (!data || data.length < pageSize) break;
-    }
+    const response = await fetch(`${API_BASE}/api/photos`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const rows = Array.isArray(payload.photos) ? payload.photos : [];
 
-    const imageFiles = files
-      .filter((file) => file.id && /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name));
-    const guestNames = await loadGuestNames(imageFiles);
-    const nextPhotos = imageFiles
-      .map((file) => {
-        const path = `${UPLOAD_FOLDER}/${file.name}`;
-        const { data: publicData } = storageClient.storage.from(BUCKET_NAME).getPublicUrl(path);
-        return {
-          id: file.id,
-          name: file.name,
-          src: publicData.publicUrl,
-          guestName: guestNames.get(file.id) || guestNameFromMetadata(file),
-          createdAt: file.created_at || file.updated_at,
-          reactions: emptyReactionState().counts,
-          myReaction: null
-        };
-      });
+    const nextPhotos = rows.map((row) => ({
+      id: row.id,
+      name: row.key,
+      src: `${CDN_BASE}/${row.key}`,
+      guestName: row.guest_name || "Convidado especial",
+      createdAt: row.created_at ? new Date(Number(row.created_at)).toISOString() : null,
+      reactions: emptyReactionState().counts,
+      myReaction: null
+    }));
 
     try {
       const reactionData = await getReactionData(nextPhotos.map(({ id }) => id));
@@ -397,7 +330,6 @@ async function loadPhotos({ silent = false } = {}) {
         photo.reactions = { ...previousPhoto.reactions };
         photo.myReaction = previousPhoto.myReaction;
       });
-      if (isMissingReactionSetupError(error)) state.reactionsAvailable = false;
       console.warn("Não foi possível atualizar as reações:", error);
     }
 
@@ -410,23 +342,16 @@ async function loadPhotos({ silent = false } = {}) {
     state.photos = nextPhotos;
     if (changed || !silent) renderGallery();
   } catch (error) {
-    console.error("Não foi possível carregar as fotos do Supabase:", error);
+    console.error("Não foi possível carregar as fotos:", error);
+    if (silent) return;
     elements.gallery.replaceChildren();
     elements.galleryStage.hidden = true;
     elements.gallery.setAttribute("aria-busy", "false");
-    if (isMissingBucketError(error)) {
-      elements.photoCount.textContent = "Bucket ainda não configurado";
-      setEmptyState(
-        "O álbum ainda não foi configurado",
-        "Execute o arquivo supabase-setup.sql no painel do Supabase."
-      );
-    } else {
-      elements.photoCount.textContent = "Álbum aguardando configuração";
-      setEmptyState(
-        "O álbum ainda não está disponível",
-        "Tente novamente em alguns instantes ou avise os noivos."
-      );
-    }
+    elements.photoCount.textContent = "Álbum aguardando conexão";
+    setEmptyState(
+      "O álbum não carregou agora",
+      "Verifique a conexão e tente novamente, ou avise os noivos."
+    );
   }
 }
 
@@ -507,6 +432,17 @@ function closeScheduleDialog() {
   elements.scheduleDialog.close();
 }
 
+function setUploadProgress(fraction, label) {
+  const clamped = Math.max(0, Math.min(1, fraction));
+  if (elements.uploadProgressBar) {
+    elements.uploadProgressBar.style.width = `${Math.round(clamped * 100)}%`;
+  }
+  if (elements.uploadProgress) {
+    elements.uploadProgress.hidden = !(clamped > 0);
+  }
+  if (typeof label === "string") elements.savePhotos.textContent = label;
+}
+
 function resetUploadForm() {
   if (state.uploadInProgress) return;
   clearObjectUrls(state.previewUrls);
@@ -514,6 +450,8 @@ function resetUploadForm() {
   elements.uploadForm.reset();
   elements.selectedFiles.replaceChildren();
   elements.selectedFiles.hidden = true;
+  if (elements.uploadProgress) elements.uploadProgress.hidden = true;
+  if (elements.uploadProgressBar) elements.uploadProgressBar.style.width = "0%";
   elements.savePhotos.disabled = true;
   elements.savePhotos.textContent = "Enviar para o álbum";
 }
@@ -555,7 +493,7 @@ function renderSelectedFiles() {
     elements.selectedFiles.append(more);
   }
   elements.selectedFiles.hidden = !state.selectedFiles.length;
-  elements.savePhotos.disabled = !state.selectedFiles.length || !storageClient;
+  elements.savePhotos.disabled = !state.selectedFiles.length || !API_BASE;
 }
 
 function extensionForFile(file) {
@@ -588,42 +526,78 @@ function randomId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function uploadWithProgress(blob, contentType, guestName, onProgress) {
+  return new Promise((resolve, reject) => {
+    const url = `${API_BASE}/api/upload?guest=${encodeURIComponent(guestName)}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.timeout = UPLOAD_TIMEOUT_MS;
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && typeof onProgress === "function") {
+        onProgress(event.loaded / event.total);
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Upload falhou (HTTP ${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error("Erro de rede no upload"));
+    xhr.ontimeout = () => reject(new Error("Tempo limite de upload excedido"));
+    xhr.send(blob);
+  });
+}
+
+async function uploadOneWithRetry(blob, contentType, guestName, onProgress) {
+  let lastError;
+  for (let attempt = 0; attempt < UPLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      await uploadWithProgress(blob, contentType, guestName, onProgress);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === UPLOAD_ATTEMPTS - 1) break;
+      onProgress?.(0);
+      await sleep(2 ** attempt * 1000 + Math.random() * 500);
+    }
+  }
+  throw lastError || new Error("Upload falhou");
+}
+
 async function uploadSelectedPhotos(event) {
   event.preventDefault();
-  if (!state.selectedFiles.length || !storageClient || state.uploadInProgress) return;
+  if (!state.selectedFiles.length || !API_BASE || state.uploadInProgress) return;
 
   state.uploadInProgress = true;
   elements.savePhotos.disabled = true;
+  setUploadProgress(0);
   const guestName = elements.guestName.value.trim() || "Convidado especial";
+  const total = state.selectedFiles.length;
   let uploadedCount = 0;
 
   try {
-    const total = state.selectedFiles.length;
     for (let index = 0; index < total; index += 1) {
-      elements.savePhotos.textContent = `Enviando ${index + 1} de ${total}…`;
       const optimized = await optimizeImage(state.selectedFiles[index]);
-      const filename = `${Date.now()}-${randomId()}.${optimized.extension}`;
-      const path = `${UPLOAD_FOLDER}/${filename}`;
-      const { data, error } = await storageClient.storage.from(BUCKET_NAME).upload(path, optimized.blob, {
-        cacheControl: "3600",
-        contentType: optimized.contentType,
-        upsert: false,
-        metadata: { guestName }
+      await uploadOneWithRetry(optimized.blob, optimized.contentType, guestName, (fraction) => {
+        setUploadProgress(
+          (index + fraction) / total,
+          `Enviando ${index + 1} de ${total}…`
+        );
       });
-      if (error) throw error;
-      if (data?.id) state.guestNames.set(data.id, guestName);
       uploadedCount += 1;
     }
 
     state.uploadInProgress = false;
+    setUploadProgress(0);
     elements.uploadDialog.close();
     resetUploadForm();
     await loadPhotos();
     showToast(`${pluralizePhotos(total)} enviadas com sucesso.`);
     document.querySelector("#galeria").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
-    console.error("Erro ao enviar fotos ao Supabase:", error);
+    console.error("Erro ao enviar fotos:", error);
     state.uploadInProgress = false;
+    setUploadProgress(0);
     if (uploadedCount > 0) {
       elements.uploadDialog.close();
       resetUploadForm();
@@ -633,9 +607,7 @@ async function uploadSelectedPhotos(event) {
     }
     elements.savePhotos.disabled = false;
     elements.savePhotos.textContent = "Tentar novamente";
-    showToast(isMissingBucketError(error)
-      ? "O álbum ainda não foi configurado no Supabase."
-      : "Não foi possível enviar. Tente novamente ou avise os noivos.");
+    showToast("Não foi possível enviar. Verifique a conexão e tente novamente.");
   }
 }
 
@@ -700,11 +672,13 @@ elements.uploadDialog.addEventListener("cancel", (event) => {
 elements.uploadDialog.addEventListener("close", resetUploadForm);
 
 function startAutoRefresh() {
-  window.setInterval(() => {
+  const tick = () => {
     if (!document.hidden && !state.uploadInProgress && !state.reactionRequests.size && !elements.uploadDialog.open && !elements.lightbox.open && !elements.scheduleDialog.open) {
       loadPhotos({ silent: true });
     }
-  }, AUTO_REFRESH_MS);
+    window.setTimeout(tick, AUTO_REFRESH_MS + Math.random() * AUTO_REFRESH_JITTER_MS);
+  };
+  window.setTimeout(tick, AUTO_REFRESH_MS);
 }
 
 function initializeAlbum() {
