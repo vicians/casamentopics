@@ -15,6 +15,18 @@ const ALLOWED_ORIGIN = "https://fotos-gabisamuel.vercel.app";
 
 const VALID_REACTIONS = ["love", "joy", "heart_eyes", "moved", "celebrate"];
 
+// 30 MB (mesmo limite configurado no frontend).
+const MAX_UPLOAD_BYTES = 31_457_280;
+
+function extensionForContentType(contentType) {
+  if (contentType.includes("png")) return "png";
+  if (contentType.includes("webp")) return "webp";
+  if (contentType.includes("gif")) return "gif";
+  if (contentType.includes("heic")) return "heic";
+  if (contentType.includes("heif")) return "heif";
+  return "jpg";
+}
+
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": origin || ALLOWED_ORIGIN,
@@ -44,21 +56,33 @@ export default {
     try {
       // ---- Upload de foto ----
       if (url.pathname === "/api/upload" && request.method === "POST") {
-        const key = url.searchParams.get("key");
         const guest = (url.searchParams.get("guest") || "Convidado especial")
           .trim()
           .slice(0, 60) || "Convidado especial";
 
-        if (!key || !key.startsWith("uploads/") || key.includes("..")) {
-          return json({ error: "key inválida" }, 400, origin);
+        // Só aceita imagens.
+        const contentType = request.headers.get("Content-Type") || "";
+        if (!contentType.startsWith("image/")) {
+          return json({ error: "tipo de arquivo não permitido" }, 415, origin);
         }
+
+        // Limita o tamanho (30 MB).
+        const declaredLength = Number(request.headers.get("Content-Length") || 0);
+        if (declaredLength > MAX_UPLOAD_BYTES) {
+          return json({ error: "arquivo muito grande" }, 413, origin);
+        }
+
         if (!request.body) {
           return json({ error: "arquivo ausente" }, 400, origin);
         }
 
+        // O nome é gerado AQUI (nunca vem do cliente) → impossível sobrescrever
+        // ou escolher caminhos. Upload é sempre "inserir novo".
+        const key = `uploads/${Date.now()}-${crypto.randomUUID()}.${extensionForContentType(contentType)}`;
+
         await env.BUCKET.put(key, request.body, {
           httpMetadata: {
-            contentType: request.headers.get("Content-Type") || "image/jpeg",
+            contentType,
             cacheControl: "public, max-age=31536000, immutable",
           },
         });
